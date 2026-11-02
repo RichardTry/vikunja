@@ -44,14 +44,18 @@ function globalOptions() {
 	return {
 		plugins: [createPinia(), createTestRouter(), [VueQueryPlugin, {queryClient: new QueryClient({defaultOptions: {queries: {retry: false}}})}]] as never[],
 		directives: {tooltip: {}},
-		mocks: {$t: (key: string) => key},
+		mocks: {
+			$t: (key: string, named?: unknown) => named && typeof named === 'object'
+				? `${key} ${JSON.stringify(named)}`
+				: key,
+		},
 		stubs: {TaskGlanceTooltip: true, CommentCount: true, ChecklistSummary: true, FancyCheckbox: true},
 	}
 }
 
-function mountRow() {
+function mountRow(task: ITask = theTask) {
 	return shallowMount(SingleTaskInProject, {
-		props: {theTask},
+		props: {theTask: task},
 		global: globalOptions(),
 	})
 }
@@ -157,5 +161,18 @@ describe('SingleTaskInProject', () => {
 
 			expect(renderedTaskIds(mountTree(tasks))).toEqual([1, 2, 3, 4, 5, 6])
 		})
+	})
+
+	it('names the estimate for screen readers', () => {
+		const wrapper = mountRow({...theTask, estimated_duration: 5400})
+		const estimate = wrapper.get('.estimated-duration')
+
+		expect(estimate.attributes('role')).toBe('img')
+		expect(estimate.attributes('aria-label')).toBe('task.attributes.estimatedDurationLabel {"duration":"1h 30m"}')
+		expect(estimate.text()).toBe('1h 30m')
+	})
+
+	it('shows no estimate on rows without one', () => {
+		expect(mountRow({...theTask, estimated_duration: 0}).find('.estimated-duration').exists()).toBe(false)
 	})
 })
