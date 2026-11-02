@@ -126,6 +126,8 @@ type Task struct {
 	HexColor string `xorm:"varchar(6) null" json:"hex_color" valid:"hexcolor" maxLength:"7" doc:"The task color as a hex string without the leading '#'."`
 	// Determines how far a task is left from being done
 	PercentDone float64 `xorm:"DOUBLE null" json:"percent_done" doc:"How far the task is from done, between 0 and 1."`
+	// The estimated time needed to complete this task, in seconds. 0 means no estimate.
+	EstimatedDuration int64 `xorm:"bigint null default 0" json:"estimated_duration" valid:"range(0|9223372036854775807)" doc:"The estimated time needed to complete this task, in seconds. 0 means no estimate."`
 
 	// The task identifier, based on the project identifier and the task's index
 	Identifier string `xorm:"-" json:"identifier" readOnly:"true" doc:"The textual task identifier, derived from the project identifier and the task index (e.g. \"PROJ-12\")."`
@@ -277,7 +279,7 @@ type taskSearchOptions struct {
 // @Param page query int false "The page number. Used for pagination. If not provided, the first page of results is returned."
 // @Param per_page query int false "The maximum number of items per page. Note this parameter is limited by the configured maximum of items per page."
 // @Param s query string false "Search tasks by task text."
-// @Param sort_by query string false "The sorting parameter. You can pass this multiple times to get the tasks ordered by multiple different parametes, along with `order_by`. Possible values to sort by are `id`, `title`, `description`, `done`, `done_at`, `due_date`, `created_by_id`, `project_id`, `repeat_after`, `priority`, `start_date`, `end_date`, `hex_color`, `percent_done`, `uid`, `created`, `updated`, `relevance`. `relevance` sorts by search relevance (most relevant first, requires `s`; ignored when the database cannot score the query). Default is `id`."
+// @Param sort_by query string false "The sorting parameter. You can pass this multiple times to get the tasks ordered by multiple different parametes, along with `order_by`. Possible values to sort by are `id`, `title`, `description`, `done`, `done_at`, `due_date`, `created_by_id`, `project_id`, `repeat_after`, `priority`, `start_date`, `end_date`, `hex_color`, `percent_done`, `estimated_duration`, `uid`, `created`, `updated`, `relevance`. `relevance` sorts by search relevance (most relevant first, requires `s`; ignored when the database cannot score the query). Default is `id`."
 // @Param order_by query string false "The ordering parameter. Possible values to order by are `asc` or `desc`. Default is `asc`."
 // @Param filter query string false "The filter query to match tasks by. Check out https://vikunja.io/docs/filters for a full explanation of the feature."
 // @Param filter_timezone query string false "The time zone which should be used for date match (statements like "now" resolve to different actual times)"
@@ -1427,6 +1429,7 @@ func (t *Task) updateSingleTaskInViews(s *xorm.Session, a web.Auth, fields []str
 		"end_date",
 		"hex_color",
 		"percent_done",
+		"estimated_duration",
 		"project_id",
 		"bucket_id",
 		"repeat_mode",
@@ -1488,6 +1491,9 @@ func (t *Task) updateSingleTaskInViews(s *xorm.Session, a web.Auth, fields []str
 		}
 		if !fieldSet["percent_done"] {
 			t.PercentDone = ot.PercentDone
+		}
+		if !fieldSet["estimated_duration"] {
+			t.EstimatedDuration = ot.EstimatedDuration
 		}
 		if !fieldSet["project_id"] {
 			t.ProjectID = ot.ProjectID
@@ -1752,6 +1758,10 @@ func (t *Task) updateSingleTaskInViews(s *xorm.Session, a web.Auth, fields []str
 	// Percent Done
 	if t.PercentDone == 0 {
 		ot.PercentDone = 0
+	}
+	// Estimated duration
+	if t.EstimatedDuration == 0 {
+		ot.EstimatedDuration = 0
 	}
 	// Repeat from current date
 	if t.RepeatMode == TaskRepeatModeDefault {
